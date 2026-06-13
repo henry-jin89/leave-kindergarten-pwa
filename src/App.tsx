@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Baby,
   CalendarDays,
@@ -104,10 +104,10 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [error, setError] = useState("");
 
-  const ready = (nextUserId: string, nextStore: LedgerStore) => {
-    setUserId(nextUserId);
-    setStore(nextStore);
-  };
+  const ready = useCallback((nextUserId: string, nextStore: LedgerStore) => {
+    setUserId((current) => current ?? nextUserId);
+    setStore((current) => current ?? nextStore);
+  }, []);
 
   const reload = async () => {
     if (!userId || !store) return;

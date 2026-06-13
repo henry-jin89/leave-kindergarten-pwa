@@ -143,6 +143,52 @@ const throwIfError = (error: { message: string } | null) => {
   if (error) throw new Error(error.message);
 };
 
+const defaultProjectTypes = new Set<Project["type"]>([
+  "annual_leave",
+  "parenting_leave",
+  "kindergarten"
+]);
+
+const defaultProjectKey = (project: Project) =>
+  `${project.userId}:${project.type}:${project.cycleStart}:${project.cycleEnd}`;
+
+const dedupeDefaultProjects = (projects: Project[], entries: Entry[]) => {
+  const canonicalByKey = new Map<string, Project>();
+  const duplicateToCanonical = new Map<string, string>();
+  const dedupedProjects: Project[] = [];
+
+  projects.forEach((project) => {
+    if (!defaultProjectTypes.has(project.type)) {
+      dedupedProjects.push(project);
+      return;
+    }
+
+    const key = defaultProjectKey(project);
+    const canonical = canonicalByKey.get(key);
+    if (canonical) {
+      duplicateToCanonical.set(project.id, canonical.id);
+      return;
+    }
+
+    canonicalByKey.set(key, project);
+    dedupedProjects.push(project);
+  });
+
+  const remappedEntries = entries.map((entry) => ({
+    ...entry,
+    projectId: duplicateToCanonical.get(entry.projectId) ?? entry.projectId
+  }));
+
+  return { projects: dedupedProjects, entries: remappedEntries };
+};
+
+const defaultProjectRows = (userId: string) =>
+  defaultProjects().map((project) => {
+    const row = fromProject({ ...project, userId });
+    const { id: _id, ...rowWithoutId } = row;
+    return rowWithoutId;
+  });
+
 export const createSupabaseStore = (): LedgerStore => {
   if (!supabase) return createDemoStore();
   const client = supabase;
@@ -161,12 +207,26 @@ export const createSupabaseStore = (): LedgerStore => {
 
       let projects = (projectsResult.data ?? []).map(toProject);
       let children = (childrenResult.data ?? []).map(toChild);
-      const entries = (entriesResult.data ?? []).map(toEntry);
+      let entries = (entriesResult.data ?? []).map(toEntry);
 
-      if (projects.length === 0) {
-        const seededProjects = defaultProjects().map((project) => ({ ...project, userId }));
-        await Promise.all(seededProjects.map((project) => this.saveProject(project)));
-        projects = seededProjects;
+      const deduped = dedupeDefaultProjects(projects, entries);
+      projects = deduped.projects;
+      entries = deduped.entries;
+
+      const existingDefaultKeys = new Set(projects.filter((project) => defaultProjectTypes.has(project.type)).map(defaultProjectKey));
+      const missingDefaultRows = defaultProjectRows(userId).filter((row) => {
+        const key = `${row.user_id}:${row.type}:${row.cycle_start}:${row.cycle_end}`;
+        return !existingDefaultKeys.has(key);
+      });
+
+      if (missingDefaultRows.length > 0) {
+        const { error } = await client
+          .from("projects")
+          .insert(missingDefaultRows);
+        throwIfError(error);
+        const refreshedProjects = await client.from("projects").select("*").order("created_at");
+        throwIfError(refreshedProjects.error);
+        projects = dedupeDefaultProjects((refreshedProjects.data ?? []).map(toProject), entries).projects;
       }
 
       if (children.length === 0) {
