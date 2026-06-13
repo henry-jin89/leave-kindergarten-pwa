@@ -111,6 +111,7 @@ function App() {
 
   const reload = async () => {
     if (!userId || !store) return;
+    setError("");
     setData(await store.load(userId));
   };
 
@@ -125,7 +126,22 @@ function App() {
   );
 
   if (!userId || !store) return <AuthGate onReady={ready} />;
-  if (!data) return <main className="loading">正在准备你的账本...</main>;
+  if (!data) {
+    return (
+      <main className="loading">
+        {error ? (
+          <section className="auth-card">
+            <p className="eyebrow">初始化失败</p>
+            <h1>账本暂时没打开</h1>
+            <p className="error">{error}</p>
+            <button className="primary" onClick={reload}>重试</button>
+          </section>
+        ) : (
+          "正在准备你的账本..."
+        )}
+      </main>
+    );
+  }
 
   const saveProject = async (project: Project) => {
     await store.saveProject(project);
