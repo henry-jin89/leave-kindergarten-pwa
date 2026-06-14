@@ -149,16 +149,26 @@ const defaultProjectTypes = new Set<Project["type"]>([
   "kindergarten"
 ]);
 
-const defaultProjectKey = (project: Project) =>
-  `${project.userId}:${project.type}:${project.cycleStart}:${project.cycleEnd}`;
+const defaultProjectKind = (project: Project): Project["type"] | null => {
+  if (defaultProjectTypes.has(project.type)) return project.type;
+  if (project.name === "年假" && project.unitMode === "half_or_full_day") return "annual_leave";
+  if (project.name === "育儿假" && project.unitMode === "half_or_full_day") return "parenting_leave";
+  if (project.name === "幼儿园" && project.unitMode === "whole_child_day") return "kindergarten";
+  return null;
+};
 
-const dedupeDefaultProjects = (projects: Project[], entries: Entry[]) => {
+const defaultProjectKey = (project: Project) =>
+  `${project.userId}:${defaultProjectKind(project)}:${project.cycleStart}:${project.cycleEnd}`;
+
+export const dedupeDefaultProjects = (projects: Project[], entries: Entry[]) => {
   const canonicalByKey = new Map<string, Project>();
   const duplicateToCanonical = new Map<string, string>();
+  const duplicateProjectRemaps: Array<{ duplicateId: string; canonicalId: string }> = [];
   const dedupedProjects: Project[] = [];
 
   projects.forEach((project) => {
-    if (!defaultProjectTypes.has(project.type)) {
+    const kind = defaultProjectKind(project);
+    if (!kind) {
       dedupedProjects.push(project);
       return;
     }
@@ -167,6 +177,7 @@ const dedupeDefaultProjects = (projects: Project[], entries: Entry[]) => {
     const canonical = canonicalByKey.get(key);
     if (canonical) {
       duplicateToCanonical.set(project.id, canonical.id);
+      duplicateProjectRemaps.push({ duplicateId: project.id, canonicalId: canonical.id });
       return;
     }
 
@@ -179,7 +190,7 @@ const dedupeDefaultProjects = (projects: Project[], entries: Entry[]) => {
     projectId: duplicateToCanonical.get(entry.projectId) ?? entry.projectId
   }));
 
-  return { projects: dedupedProjects, entries: remappedEntries };
+  return { projects: dedupedProjects, entries: remappedEntries, duplicateProjectRemaps };
 };
 
 const defaultProjectRows = (userId: string) =>
@@ -210,10 +221,23 @@ export const createSupabaseStore = (): LedgerStore => {
       let entries = (entriesResult.data ?? []).map(toEntry);
 
       const deduped = dedupeDefaultProjects(projects, entries);
+      if (deduped.duplicateProjectRemaps.length > 0) {
+        const remapResults = await Promise.all(
+          deduped.duplicateProjectRemaps.map(({ duplicateId, canonicalId }) =>
+            client.from("entries").update({ project_id: canonicalId }).eq("project_id", duplicateId)
+          )
+        );
+        remapResults.forEach((result) => throwIfError(result.error));
+        const { error } = await client
+          .from("projects")
+          .delete()
+          .in("id", deduped.duplicateProjectRemaps.map(({ duplicateId }) => duplicateId));
+        throwIfError(error);
+      }
       projects = deduped.projects;
       entries = deduped.entries;
 
-      const existingDefaultKeys = new Set(projects.filter((project) => defaultProjectTypes.has(project.type)).map(defaultProjectKey));
+      const existingDefaultKeys = new Set(projects.filter(defaultProjectKind).map(defaultProjectKey));
       const missingDefaultRows = defaultProjectRows(userId).filter((row) => {
         const key = `${row.user_id}:${row.type}:${row.cycle_start}:${row.cycle_end}`;
         return !existingDefaultKeys.has(key);
