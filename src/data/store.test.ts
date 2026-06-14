@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Entry, Project } from "../domain/types";
-import { dedupeDefaultProjects } from "./store";
+import { defaultProjects } from "./defaults";
+import { applyDefaultProjectCycles, dedupeDefaultProjects } from "./store";
 
 const project = (overrides: Partial<Project> = {}): Project => ({
   id: "project-1",
@@ -25,8 +26,37 @@ const entry = (overrides: Partial<Entry> = {}): Entry => ({
   ...overrides
 });
 
-describe("dedupeDefaultProjects", () => {
-  it("keeps one default project per type and cycle", () => {
+describe("default project handling", () => {
+  it("uses the configured cycles for default projects", () => {
+    const projects = defaultProjects();
+
+    expect(projects.find((item) => item.name === "年假")).toMatchObject({
+      cycleStart: "2026-03-01",
+      cycleEnd: "2027-03-31"
+    });
+    expect(projects.find((item) => item.name === "育儿假")).toMatchObject({
+      cycleStart: "2026-05-01",
+      cycleEnd: "2027-05-31"
+    });
+    expect(projects.find((item) => item.name === "幼儿园")).toMatchObject({
+      cycleStart: "2025-01-01",
+      cycleEnd: "2028-12-31"
+    });
+  });
+
+  it("updates existing default projects to the configured cycles", () => {
+    const [annual, parenting, kindergarten] = applyDefaultProjectCycles([
+      project({ id: "annual", type: "annual_leave", name: "年假" }),
+      project({ id: "parenting", type: "parenting_leave", name: "育儿假" }),
+      project({ id: "kindergarten", type: "kindergarten", name: "幼儿园", unitMode: "whole_child_day" })
+    ]);
+
+    expect(annual).toMatchObject({ cycleStart: "2026-03-01", cycleEnd: "2027-03-31" });
+    expect(parenting).toMatchObject({ cycleStart: "2026-05-01", cycleEnd: "2027-05-31" });
+    expect(kindergarten).toMatchObject({ cycleStart: "2025-01-01", cycleEnd: "2028-12-31" });
+  });
+
+  it("keeps one default project per type", () => {
     const result = dedupeDefaultProjects(
       [
         project({ id: "project-1" }),

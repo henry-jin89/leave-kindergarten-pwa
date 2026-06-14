@@ -1,5 +1,5 @@
-import type { Child, Entry, Project } from "../domain/types";
-import { defaultChildren, defaultProjects } from "./defaults";
+import type { Child, Entry, Project, ProjectType } from "../domain/types";
+import { defaultChildren, defaultProjects, defaultProjectSpecs } from "./defaults";
 import { supabase } from "./supabaseClient";
 
 export interface LedgerData {
@@ -143,22 +143,47 @@ const throwIfError = (error: { message: string } | null) => {
   if (error) throw new Error(error.message);
 };
 
-const defaultProjectTypes = new Set<Project["type"]>([
+type DefaultProjectType = Exclude<ProjectType, "custom">;
+
+const defaultProjectTypes = new Set<DefaultProjectType>([
   "annual_leave",
   "parenting_leave",
   "kindergarten"
 ]);
 
-const defaultProjectKind = (project: Project): Project["type"] | null => {
-  if (defaultProjectTypes.has(project.type)) return project.type;
+const defaultProjectKind = (project: Project): DefaultProjectType | null => {
+  if (defaultProjectTypes.has(project.type as DefaultProjectType)) return project.type as DefaultProjectType;
   if (project.name === "年假" && project.unitMode === "half_or_full_day") return "annual_leave";
   if (project.name === "育儿假" && project.unitMode === "half_or_full_day") return "parenting_leave";
   if (project.name === "幼儿园" && project.unitMode === "whole_child_day") return "kindergarten";
   return null;
 };
 
+const defaultProjectSpecByType = new Map(
+  defaultProjectSpecs.map((project) => [project.type, project])
+);
+
 const defaultProjectKey = (project: Project) =>
   `${project.userId}:${defaultProjectKind(project)}`;
+
+export const applyDefaultProjectCycles = (projects: Project[]) =>
+  projects.map((project) => {
+    const kind = defaultProjectKind(project);
+    if (!kind) return project;
+
+    const spec = defaultProjectSpecByType.get(kind);
+    if (!spec) return project;
+
+    if (project.cycleStart === spec.cycleStart && project.cycleEnd === spec.cycleEnd) {
+      return project;
+    }
+
+    return {
+      ...project,
+      cycleStart: spec.cycleStart,
+      cycleEnd: spec.cycleEnd
+    };
+  });
 
 export const dedupeDefaultProjects = (projects: Project[], entries: Entry[]) => {
   const canonicalByKey = new Map<string, Project>();
@@ -236,6 +261,19 @@ export const createSupabaseStore = (): LedgerStore => {
       }
       projects = deduped.projects;
       entries = deduped.entries;
+
+      const cycleUpdatedProjects = applyDefaultProjectCycles(projects);
+      const projectsWithCycleChanges = cycleUpdatedProjects.filter((project, index) => {
+        const original = projects[index];
+        return project.cycleStart !== original.cycleStart || project.cycleEnd !== original.cycleEnd;
+      });
+      if (projectsWithCycleChanges.length > 0) {
+        const updateResults = await Promise.all(
+          projectsWithCycleChanges.map((project) => client.from("projects").upsert(fromProject(project)))
+        );
+        updateResults.forEach((result) => throwIfError(result.error));
+        projects = cycleUpdatedProjects;
+      }
 
       const existingDefaultKeys = new Set(projects.filter(defaultProjectKind).map(defaultProjectKey));
       const missingDefaultRows = defaultProjectRows(userId).filter((row) => {
