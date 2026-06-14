@@ -379,6 +379,16 @@ h3 {
   filter: blur(12px);
 }
 
+.hero-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+  margin-top: 0.72rem;
+  color: #b6c6d8;
+  font-size: clamp(0.95rem, 1.5vw, 1.08rem);
+  line-height: 1.75;
+}
+
 .cards-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

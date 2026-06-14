@@ -78,8 +78,8 @@ function AuthGate({ onReady }: { onReady: (userId: string, store: LedgerStore) =
     <main className="auth-shell">
       <section className="auth-card">
         <div className="brand-mark">天</div>
-        <p className="eyebrow">Cloud ledger</p>
-        <h1>我的天数账本</h1>
+        <p className="eyebrow">Day balance</p>
+        <h1>家庭假期额度数据中心</h1>
         <p className="muted">用邮箱验证码登录，同一账号可在手机和 Mac 自动同步。</p>
         <label>
           邮箱
@@ -174,11 +174,11 @@ function App() {
       <header className="topbar">
         <div>
           <p className="eyebrow">Day balance</p>
-          <h1>我的天数账本</h1>
+          <h1>家庭假期额度数据中心</h1>
         </div>
         <div className="top-actions">
-          {store.mode === "supabase" && <span className="sync-pill"><Cloud size={15} />云同步</span>}
-          <button className="ghost icon-text" onClick={signOut}><LogOut size={16} />退出</button>
+          {store.mode === "supabase" && <span className="sync-pill"><Cloud size={15} />数据同步</span>}
+          <button className="ghost icon-text" onClick={signOut}><LogOut size={16} />退出系统</button>
         </div>
       </header>
 
@@ -188,10 +188,11 @@ function App() {
         <>
           <section className="hero-panel">
             <div>
-              <p className="eyebrow">今天 {todayISO()}</p>
-              <h2>假期余额和包天天数，一眼看清。</h2>
+              <p className="eyebrow">数据日期 {todayISO()}</p>
+              <h2>额度状态总览</h2>
+              <p className="hero-copy">集中展示育儿假、年假及托管服务天数，支持余额追踪、周期管理与使用记录同步。</p>
             </div>
-            <button className="primary" onClick={() => setModal("entry")}><Plus size={18} />新增记录</button>
+            <button className="primary" onClick={() => setModal("entry")}><Plus size={18} />新增使用记录</button>
           </section>
 
           <section className="cards-grid">
@@ -210,9 +211,9 @@ function App() {
                 </div>
                 <h3>{summary.project.name}</h3>
                 <div className="big-number">{formatDays(summary.remainingDays)}</div>
-                <p>{summary.project.unitMode === "whole_child_day" ? "还可用 / 包天总数" : "剩余 / 总额度"} {formatDays(summary.project.quotaDays)} 天</p>
+                <p>剩余额度 / 总额度 {formatDays(summary.project.quotaDays)} 天</p>
                 <div className="meter"><span style={{ width: `${Math.min(100, (summary.usedDays / summary.project.quotaDays) * 100)}%` }} /></div>
-                <p>{summary.project.unitMode === "whole_child_day" ? "已去" : "已用"} {formatDays(summary.usedDays)} 天，周期 {summary.project.cycleStart} 至 {summary.project.cycleEnd}</p>
+                <p>已使用 {formatDays(summary.usedDays)} 天｜有效周期 {summary.project.cycleStart} 至 {summary.project.cycleEnd}</p>
                 <RecentEntries
                   project={summary.project}
                   entries={summary.entriesInCycle}
@@ -253,7 +254,7 @@ function App() {
       <footer className="bottom-bar">
         <button onClick={() => setModal("children")}>孩子设置</button>
         <button onClick={() => setModal("project")}>新增项目</button>
-        <button onClick={() => setModal("entry")}>快速记录</button>
+        <button onClick={() => setModal("entry")}>新增使用记录</button>
       </footer>
 
       {modal === "entry" && (
@@ -319,7 +320,7 @@ function RecentEntries({
 
   return (
     <div className="recent-entries">
-      <span className="recent-title">具体日期</span>
+      <span className="recent-title">使用明细</span>
       {recentEntries.length === 0 ? (
         <span className="recent-empty">暂无使用记录</span>
       ) : (
@@ -382,7 +383,7 @@ function EntryModal({
   return (
     <div className="modal-backdrop">
       <section className="modal">
-        <h2>{editingEntry ? "编辑记录" : "新增记录"}</h2>
+        <h2>{editingEntry ? "编辑使用记录" : "新增使用记录"}</h2>
         <label>项目<select value={projectId} onChange={(event) => setProjectId(event.target.value)}>{projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label>日期<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
         {project.unitMode === "half_or_full_day" ? (
@@ -502,13 +503,13 @@ function ProjectDetail({
           <h2>{project.name}</h2>
           <p>
             {isKindergarten
-              ? `已去 ${formatDays(summary.usedDays)} 天，还可用 ${formatDays(summary.remainingDays)} 天，包天总数 ${formatDays(project.quotaDays)} 天。`
-              : `已用 ${formatDays(summary.usedDays)} 天，剩余 ${formatDays(summary.remainingDays)} 天。`}
+              ? `已使用 ${formatDays(summary.usedDays)} 天｜剩余额度 ${formatDays(summary.remainingDays)} 天｜总额度 ${formatDays(project.quotaDays)} 天。`
+              : `已使用 ${formatDays(summary.usedDays)} 天｜剩余额度 ${formatDays(summary.remainingDays)} 天。`}
           </p>
         </div>
         <div className="detail-actions">
           <button className="ghost icon-text" onClick={() => onEditProject(project)}><Pencil size={16} />编辑项目</button>
-          <button className="primary" onClick={onAddEntry}><Plus size={18} />新增记录</button>
+          <button className="primary" onClick={onAddEntry}><Plus size={18} />新增使用记录</button>
         </div>
       </div>
       <div className="segmented compact">

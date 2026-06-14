@@ -9,11 +9,11 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg"],
       manifest: {
-        name: "我的天数账本",
-        short_name: "天数账本",
-        description: "记录年假、育儿假和幼儿园包天天数。",
-        theme_color: "#f6f1e8",
-        background_color: "#f6f1e8",
+        name: "家庭假期额度数据中心",
+        short_name: "额度中心",
+        description: "集中管理育儿假、年假及托管服务天数，支持余额追踪、周期管理与使用记录同步。",
+        theme_color: "#020617",
+        background_color: "#020617",
         display: "standalone",
         start_url: "/",
         icons: [
