@@ -158,7 +158,7 @@ const defaultProjectKind = (project: Project): Project["type"] | null => {
 };
 
 const defaultProjectKey = (project: Project) =>
-  `${project.userId}:${defaultProjectKind(project)}:${project.cycleStart}:${project.cycleEnd}`;
+  `${project.userId}:${defaultProjectKind(project)}`;
 
 export const dedupeDefaultProjects = (projects: Project[], entries: Entry[]) => {
   const canonicalByKey = new Map<string, Project>();
@@ -239,7 +239,7 @@ export const createSupabaseStore = (): LedgerStore => {
 
       const existingDefaultKeys = new Set(projects.filter(defaultProjectKind).map(defaultProjectKey));
       const missingDefaultRows = defaultProjectRows(userId).filter((row) => {
-        const key = `${row.user_id}:${row.type}:${row.cycle_start}:${row.cycle_end}`;
+        const key = `${row.user_id}:${row.type}`;
         return !existingDefaultKeys.has(key);
       });
 

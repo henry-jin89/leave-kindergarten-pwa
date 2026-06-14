@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import type { Child, Entry, Project } from "./domain/types";
 import { createEntryDraft, formatDays, summarizeProject } from "./domain/calculations";
-import { createDemoStore, createSupabaseStore, type LedgerData, type LedgerStore } from "./data/store";
+import { createDemoStore, createSupabaseStore, dedupeDefaultProjects, type LedgerData, type LedgerStore } from "./data/store";
 import { isSupabaseConfigured, supabase } from "./data/supabaseClient";
 import { currentYearCycle, daysInMonth, monthKey, todayISO } from "./lib/date";
 
@@ -119,14 +119,19 @@ function App() {
     reload().catch((err: Error) => setError(err.message));
   }, [userId, store]);
 
-  const selectedProject = data?.projects.find((project) => project.id === selectedProjectId) ?? data?.projects[0];
+  const displayData = useMemo<LedgerData | null>(() => {
+    if (!data) return null;
+    const deduped = dedupeDefaultProjects(data.projects, data.entries);
+    return { ...data, projects: deduped.projects, entries: deduped.entries };
+  }, [data]);
+  const selectedProject = displayData?.projects.find((project) => project.id === selectedProjectId) ?? displayData?.projects[0];
   const summaries = useMemo(
-    () => data?.projects.map((project) => summarizeProject(project, data.entries)) ?? [],
-    [data]
+    () => displayData?.projects.map((project) => summarizeProject(project, displayData.entries)) ?? [],
+    [displayData]
   );
 
   if (!userId || !store) return <AuthGate onReady={ready} />;
-  if (!data) {
+  if (!data || !displayData) {
     return (
       <main className="loading">
         {error ? (
@@ -211,7 +216,7 @@ function App() {
                 <RecentEntries
                   project={summary.project}
                   entries={summary.entriesInCycle}
-                  children={data.children}
+                  children={displayData.children}
                 />
               </button>
             ))}
@@ -227,8 +232,8 @@ function App() {
       {screen === "detail" && selectedProject && (
         <ProjectDetail
           project={selectedProject}
-          entries={data.entries.filter((entry) => entry.projectId === selectedProject.id)}
-          children={data.children}
+          entries={displayData.entries.filter((entry) => entry.projectId === selectedProject.id)}
+          children={displayData.children}
           viewMode={viewMode}
           onBack={() => setScreen("home")}
           onViewMode={setViewMode}
@@ -253,8 +258,8 @@ function App() {
 
       {modal === "entry" && (
         <EntryModal
-          projects={data.projects}
-          children={data.children}
+          projects={displayData.projects}
+          children={displayData.children}
           initialProjectId={selectedProject?.id}
           editingEntry={editingEntry}
           onClose={() => {
@@ -286,7 +291,7 @@ function App() {
       {modal === "children" && (
         <ChildrenModal
           userId={userId}
-          children={data.children}
+          children={displayData.children}
           onClose={() => setModal(null)}
           onSave={async (child) => {
             await store.saveChild(child);

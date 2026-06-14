@@ -58,6 +58,21 @@ describe("dedupeDefaultProjects", () => {
     ]);
   });
 
+  it("dedupes default projects even when duplicate cycle fields differ", () => {
+    const result = dedupeDefaultProjects(
+      [
+        project({ id: "project-1", cycleStart: "2026-01-01", cycleEnd: "2026-12-31" }),
+        project({ id: "project-2", cycleStart: "2026-01-02", cycleEnd: "2026-12-30" })
+      ],
+      []
+    );
+
+    expect(result.projects.map((item) => item.id)).toEqual(["project-1"]);
+    expect(result.duplicateProjectRemaps).toEqual([
+      { duplicateId: "project-2", canonicalId: "project-1" }
+    ]);
+  });
+
   it("keeps ordinary custom projects", () => {
     const result = dedupeDefaultProjects(
       [
